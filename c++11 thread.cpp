@@ -80,3 +80,56 @@ int main() {
 
 	return 0;
 }
+
+
+
+
+/*
+	chrono::steady_clock::time_point tp = chrono::steady_clock::now() + chrono::seconds(4);
+
+	thread t1(factorial1, 6);
+	this_thread::sleep_for(chrono::seconds(3));
+	this_thread::sleep_until(tp);
+	t1.join();
+
+	unique_lock<mutex> locker(mu);
+	//locker.try_lock_for(chrono::seconds(3));
+	//locker.try_lock_until(tp);
+
+	cond.wait_for(locker, chrono::seconds(3));
+	cond.wait_until(locker, tp);
+
+	promise<int> pro;
+	future<int> fu = pro.get_future();
+	fu.wait_for(chrono::seconds(3));
+	fu.wait_until(tp);
+*/
+
+/*
+	promise<int> pro;
+	shared_future<int> sf = pro.get_future();
+	//future<int> fu = pro.get_future();
+	//shared_future<int> sf = fu.share();
+
+	future<int> fu1 = async(launch::async | launch::deferred, factorial, sf);
+	future<int> fu2 = async(launch::async | launch::deferred, factorial, sf);
+	future<int> fu3 = async(launch::async | launch::deferred, factorial, sf);
+	//future<int> fu = async(launch::async | launch::deferred, factorial, 4);
+	
+	pro.set_value(4);
+	cout << fu1.get() << endl;
+	cout << fu2.get() << endl;
+*/
+
+/*
+	thread t1(thread_1);
+	packaged_task<int()> t(bind(factorial1, 4));
+	future<int> fu = t.get_future();
+	{
+		unique_lock<mutex> locker(mu);
+		task_que.push_front(move(t));
+	}
+	cond.notify_one();
+	cout << fu.get() << endl;
+	t1.join();
+*/
