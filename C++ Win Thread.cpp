@@ -47,7 +47,7 @@ void find(void* arg) {
 }
 
 int main() {
-
+/*
   char str[] = "Start";
 	HANDLE hd = (HANDLE)_beginthread(run, 0, &str);
   WaitForSingleObject(hd, INFINITE);
@@ -57,16 +57,16 @@ int main() {
   DWORD pid = GetCurrentProcessId();
 
   cout << "tid = " << tid << ", pid = " << pid << endl;
+*/
 
 
-/*
   flg = -1;
   vector<int> nums;
   for (int i = 0; i < 1000; ++i) {
     nums.push_back(i);
   }
 
-  for (int i = 9; i >= 0; --i) {
+  for (int i = 0; i < 10; ++i) {
     Node node;
     node.ptr = &nums;
     node.start = i * 100;
@@ -80,8 +80,10 @@ int main() {
     Sleep(10);
     
   }
-*/
+
 	system("pause");
+
+  _endthread();
 
 	return 0;
 }
