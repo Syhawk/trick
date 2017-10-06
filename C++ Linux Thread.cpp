@@ -545,8 +545,8 @@ int main(int argc, char* argv[]) {
 /*
 // ******************************************
     pthread_t tid1;
-    pthread_t tid2;sys/mman.h>
-       #include <sys/stat.h>
+    pthread_t tid2;
+
     int err1;
     int err2;
     int err_mutex;
@@ -582,8 +582,7 @@ int main(int argc, char* argv[]) {
     pthread_join(tid1, NULL);
     pthread_join(tid2, NULL);
     
-    finish(&buffer);sys/mman.h>
-       #include <sys/stat.h>
+    finish(&buffer);
 */
 
 /*
@@ -623,8 +622,7 @@ int main(int argc, char* argv[]) {
     } else {
         cout << "join thread 2 success.\n";
     }
-    sys/mman.h>
-       #include <sys/stat.h>
+
     pthread_attr_destroy(&attr);
 */
 
