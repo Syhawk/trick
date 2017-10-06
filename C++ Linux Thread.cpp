@@ -3,6 +3,13 @@ g++ main.cpp -lpthread -o main
 
 man pthreads
 
+vi /usr/include/pthread.h
+
+ulimit -s
+
+man shm_open fork mmap
+
+-lrt
 */
 
 
@@ -16,9 +23,13 @@ man pthreads
 #include <cstdlib>
 #include <unistd.h>
 #include <signal.h>
-#include <asm-generic/errno-base.h>
+#include <errno.h>
+#include <limits.h>
+#include <fcntl.h>
+#include <sys/mman.h>
 
 using namespace std;
+
 
 // ******************************************
 void* thread_fun(void* arg) {
@@ -37,6 +48,7 @@ void* thread_fun(void* arg) {
 	}
 }
 
+
 // ******************************************
 void* thread_fun1(void* arg) {
     cout << "thread 1" << endl;
@@ -49,6 +61,7 @@ void* thread_fun2(void* arg) {
     pthread_detach(pthread_self());
     pthread_exit((void*)2);
 }
+
 
 // ******************************************
 void* thread_cancel(void* arg) {
@@ -76,6 +89,7 @@ void* thread_cancel(void* arg) {
     
     return (void*)2;
 }
+
 
 // ******************************************
 void* thread_kill(void* arg) {
@@ -272,6 +286,118 @@ void* consumer(void* arg) {
 
 
 // ******************************************
+pthread_once_t once = PTHREAD_ONCE_INIT;
+
+void thread_init() {
+    int tid = pthread_self();
+    printf("I'm thread 0x%0x.\n", tid);
+}
+
+void* thread_init1(void* arg) {
+    int tid = pthread_self();
+    printf("My thread id is 0x%0x.\n", tid);
+    printf("once is %d.\n", once);
+    pthread_once(&once, thread_init);
+    printf("once is %d.\n", once);
+}
+
+void* thread_init2(void* arg) {
+    sleep(1);
+    int tid = pthread_self();
+    printf("My thread id is 0x%0x.\n", tid);
+    pthread_once(&once, thread_init);
+}
+
+
+// ******************************************
+void* thread_detachstate1(void* arg) {
+    int detach_state;
+    pthread_attr_getdetachstate((pthread_attr_t*)arg, &detach_state);
+    printf("thread 1 detach_state is %d.\n", detach_state);
+}
+
+void* thread_detachstate2(void* arg) {
+    cout << "thread 2.\n";
+}
+
+
+// ******************************************
+void* thread_stacksize(void* arg) {
+    size_t stack_size;
+    pthread_attr_t* ptr = (pthread_attr_t*)arg;
+#ifdef _POSIX_THREAD_ATTR_STACKSIZE
+    pthread_attr_getstacksize(ptr, &stack_size);
+    printf("stack size is %lu\n", stack_size);
+    pthread_attr_setstacksize(ptr, PTHREAD_STACK_MIN);
+    pthread_attr_getstacksize(ptr, &stack_size);
+    printf("stack size is %lu\n", stack_size);
+    pthread_attr_setstacksize(ptr, PTHREAD_STACK_MIN - 10);
+    pthread_attr_getstacksize(ptr, &stack_size);
+    printf("stack size is %lu\n", stack_size);
+#endif
+}
+
+
+// ******************************************
+void* thread_map1(void* arg) {
+    cout << "thread 1 start!\n";
+    pthread_key_t* key = (pthread_key_t*)arg;
+    int* a = new int(1);
+    pthread_setspecific(*key, (void*)a);
+    sleep(2);
+    printf("thread 1 key->data is %d\n", *((int*)(pthread_getspecific(*key))));
+}
+
+void* thread_map2(void* arg) {
+    sleep(1);
+    cout << "thread 2 start!\n";
+    pthread_key_t* key = (pthread_key_t*)arg;
+    int* a = new int(2);
+    pthread_setspecific(*key, (void*)a);
+    printf("thread 2 key->data is %d\n", *((int*)(pthread_getspecific(*key))));
+}
+
+void thread_release(void* arg) {
+    printf("data is %d\n", *((int*)(arg)));
+    delete (int*)arg;
+}
+
+
+// ******************************************
+pthread_mutex_t mutex;
+void thread_prepare() {
+    pthread_mutex_lock(&mutex);
+    cout << "I'm prepare.\n";
+}
+
+void thread_parent() {
+    pthread_mutex_unlock(&mutex);
+    cout << "I'm parent.\n";
+}
+
+void thread_child() {
+    pthread_mutex_unlock(&mutex);
+    cout << "I'm child.\n";
+}
+
+void* thread_fork(void* arg) {
+    sleep(1);
+    pid_t pid;
+    pthread_atfork(thread_prepare, thread_parent, thread_child);
+    pid = fork();
+    if (pid == 0) {
+        pthread_mutex_lock(&mutex);
+        printf("child process.\n");
+        pthread_mutex_unlock(&mutex);
+    } else {
+        pthread_mutex_lock(&mutex);
+        printf("parent process.\n");
+        pthread_mutex_unlock(&mutex);
+    }
+}
+
+
+// ******************************************
 
 int main(int argc, char* argv[]) {
 
@@ -348,7 +474,7 @@ int main(int argc, char* argv[]) {
     int err;
     int s;
     void* rval;
-pthread
+
     err = pthread_create(&tid, NULL, thread_kill, NULL);
     if (err != 0) {
         printf("create new thread error.\n");
@@ -419,7 +545,8 @@ pthread
 /*
 // ******************************************
     pthread_t tid1;
-    pthread_t tid2;
+    pthread_t tid2;sys/mman.h>
+       #include <sys/stat.h>
     int err1;
     int err2;
     int err_mutex;
@@ -455,10 +582,169 @@ pthread
     pthread_join(tid1, NULL);
     pthread_join(tid2, NULL);
     
-    finish(&buffer);
+    finish(&buffer);sys/mman.h>
+       #include <sys/stat.h>
+*/
+
+/*
+// ******************************************
+    pthread_t tid1;
+    pthread_t tid2;
+
+    pthread_create(&tid1, NULL, thread_init1, NULL);
+    pthread_create(&tid2, NULL, thread_init2, NULL);
+
+    pthread_join(tid1, NULL);
+    pthread_join(tid2, NULL);
+*/
+
+/*
+// ******************************************
+    pthread_t tid1;
+    pthread_t tid2;
+    pthread_attr_t attr;
+    int err;
+
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE); // PTHREAD_CREATE_DETACHED
+
+    pthread_create(&tid1, &attr, thread_detachstate1, (void*)&attr);
+    pthread_create(&tid2, NULL, thread_detachstate2, NULL);
+
+    err = pthread_join(tid1, NULL);
+    if (err) {
+        cout << "join thread 1 failure.\n";
+    } else {
+        cout << "join thread 1 success.\n";
+    }
+    err = pthread_join(tid2, NULL);
+    if (err) {
+        cout << "join thread 2 failure.\n";
+    } else {
+        cout << "join thread 2 success.\n";
+    }
+    sys/mman.h>
+       #include <sys/stat.h>
+    pthread_attr_destroy(&attr);
+*/
+
+/*
+// ******************************************
+    pthread_t tid;
+    pthread_attr_t attr;
+    int err;
+
+    pthread_attr_init(&attr);
+
+    err = pthread_create(&tid, &attr, thread_stacksize, (void*)&attr);
+    if (err) {
+        cout << "create new thread failure.\n";
+        return 0;
+    }
+
+    err = pthread_join(tid, NULL);
+    if (err) {
+        cout << "join thread 1 failure.\n";
+    } else {
+        cout << "join thread 1 success.\n";
+    }
+    pthread_attr_destroy(&attr);
+*/
+
+/*
+// ******************************************
+    const size_t length = 100;
+    const size_t offset = 0;
+    string shm_name1 = "shm1";
+    string shm_name2 = "shm2";
+    int shm_id1;
+    int shm_id2;
+    char* buf;
+    pid_t pid;
+    pthread_mutex_t* mutex;
+    pthread_mutexattr_t mutex_attr;
+    
+    shm_id1 = shm_open(shm_name1.c_str(), O_RDWR | O_CREAT, 0644);
+    ftruncate(shm_id1, length);
+    mutex = (pthread_mutex_t*)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, shm_id1, offset); // MAP_PRIVATE
+    
+    pthread_mutexattr_init(&mutex_attr);
+#ifdef _POSIX_THREAD_PROCESS_SHARED
+    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+#endif
+    pthread_mutex_init(mutex, &mutex_attr);
+    
+    shm_id2 = shm_open(shm_name2.c_str(), O_RDWR | O_CREAT, 0644);
+    ftruncate(shm_id2, length);
+    buf = (char*)mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, shm_id2, offset); // MAP_PRIVATE
+
+    pid = fork();
+    printf("%d\n", pid);
+    if (pid == 0) {
+        sleep(1);
+        cout << "I'm child process.\n";
+        pthread_mutex_lock(mutex);
+        memcpy(buf, "hello", 6);
+        printf("child buf is : %s\n", buf);
+        pthread_mutex_unlock(mutex);
+    } else if (pid > 0) {
+        cout << "I'm parent process.\n";
+        pthread_mutex_lock(mutex);
+        memcpy(buf, "world", 6);
+        sleep(2);
+        printf("parent buf is : %s\n", buf);
+        pthread_mutex_unlock(mutex);
+    }
+
+    pthread_mutex_destroy(mutex);
+    pthread_mutexattr_destroy(&mutex_attr);
+    munmap(mutex, length);
+    munmap(buf, length);
+    shm_unlink(shm_name1.c_str());
+    shm_unlink(shm_name2.c_str());
+*/
+
+/*
+// ******************************************
+    pthread_t tid1;
+    pthread_t tid2;
+    pthread_key_t key;
+
+    pthread_key_create(&key, thread_release);
+    if (pthread_create(&tid1, NULL, thread_map1, (void*)(&key))) {
+        cout << "create thread 1 failure.\n";
+        return 0;
+    }
+    if (pthread_create(&tid2, NULL, thread_map2, (void*)(&key))) {
+        cout << "create thread 2 failure.\n";
+        return 0;
+    }
+
+    pthread_join(tid1, NULL);
+    pthread_join(tid2, NULL);
+    pthread_key_delete(key);
+*/
+
+/*
+// ******************************************
+    pthread_t tid;
+    pthread_mutex_init(&mutex, NULL);
+
+    if (pthread_create(&tid, NULL, thread_fork, NULL)) {
+        cout << "create thread failure.\n";
+        return 0;
+    }
+
+    pthread_mutex_lock(&mutex);
+    sleep(2);
+    cout << "main\n";
+    pthread_mutex_unlock(&mutex);
+
+    pthread_join(tid, NULL);
+    pthread_mutex_destroy(&mutex);
 */
 
 // ******************************************
-    
+
 	return 0;
 }
