@@ -31,8 +31,8 @@ void* thread_read(void* arg) {
     while (1) {
         usleep(1);
         memset(buf, 0, sizeof(buf));
-        read(sd, buf, sizeof(buf));
-        if (strlen(buf) == 0) {
+        size_t size = read(sd, buf, sizeof(buf));
+        if (size == 0) {
             continue;
         }
         printf("client 2 say: %s\n", buf);
@@ -43,7 +43,7 @@ void* thread_write(void* arg) {
     char buf[BUFFER_SIZE];
     while (1) {
         usleep(1);
-        fgets(buf, sizeof(buf), stdin);
+        cin.getline(buf, sizeof(buf));
         if (strlen(buf) == 0) {
             continue;
         }
