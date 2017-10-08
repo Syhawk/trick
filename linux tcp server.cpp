@@ -40,15 +40,17 @@ void* thread_read(void* arg) {
     char buf[BUFFER_SIZE];
     while (1) {
         memset(buf, 0, sizeof(buf));
-        read(p->ad, buf, sizeof(buf));
+        size_t size = read(p->ad, buf, sizeof(buf));
+        if (size == 0) {
+            continue;
+        }
 
         printf("read data from client : %s\n", inet_ntoa(p->remote_ip.sin_addr));
         printf("buf is %s\n", buf);
-        if (strlen(buf) > 0) {
-            for (int i = 0; i < cnt; ++i) {
-                if (clients[i].ad != p->ad) {
-                    write(clients[i].ad, buf, sizeof(buf));
-                }
+        
+        for (int i = 0; i < cnt; ++i) {
+            if (clients[i].ad != p->ad) {
+                write(clients[i].ad, buf, sizeof(buf));
             }
         }
     }
