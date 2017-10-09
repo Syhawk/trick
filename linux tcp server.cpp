@@ -27,6 +27,7 @@ using namespace std;
 
 struct Point {
     int ad;
+    int no;
     sockaddr_in remote_ip;
     Point() {}
 };
@@ -40,16 +41,24 @@ void* thread_read(void* arg) {
     char buf[BUFFER_SIZE];
     while (1) {
         memset(buf, 0, sizeof(buf));
-        size_t size = read(p->ad, buf, sizeof(buf));
-        if (size == 0) {
-            continue;
+        int size = read(p->ad, buf, sizeof(buf));
+        if (size <= 0) {
+            sleep(1);
+            if (size < 0) {
+                printf("------------client %d read data error!------------\n", p->no);
+            }
+            printf("------------client %d close!------------\n", p->no);
+            close(p->ad);
+            p->ad = -2;
+            return (void*)1;
         }
 
-        printf("read data from client : %s\n", inet_ntoa(p->remote_ip.sin_addr));
-        printf("buf is %s\n", buf);
-        
+        printf("read data from client: %s\n", inet_ntoa(p->remote_ip.sin_addr));
+        printf("data is: %s\n", buf);
+
         for (int i = 0; i < cnt; ++i) {
-            if (clients[i].ad != p->ad) {
+            // Here has bug, when thread's number is big, ad's value is -2, it write message to this client.
+            if (clients[i].ad != p->ad && clients[i].ad >= 0) {
                 write(clients[i].ad, buf, sizeof(buf));
             }
         }
@@ -75,6 +84,15 @@ int main() {
     server_ip.sin_port = htons(5678);
     server_ip.sin_addr.s_addr = htonl(INADDR_ANY);
     memset(server_ip.sin_zero, 0, sizeof(server_ip.sin_zero));
+
+    // Set server can restart right away.
+    int on = 1;
+    err = setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    if (err == -1) {
+        printf("setsockopt error, errno is %d.\n", errno);
+        close(sd);
+        return 0;
+    }
     
     // Bind ip address and port to socket.
     err = bind(sd, (struct sockaddr*)(&server_ip), sizeof(struct sockaddr));
@@ -91,14 +109,11 @@ int main() {
         close(sd);
         return 0;
     }
-    
+
     // Get client ip address's size.
     remote_len = sizeof(struct sockaddr);
     // Use for to make sure client connecting to server.
     for (cnt = 0; cnt < THREAD_NUM; ++cnt) {
-        if (cnt) {
-            printf("------------client %d start!------------\n", cnt);
-        }
         // Wait client's request, if request getted, return a new socket;
         // Server connect client with new socket.
         clients[cnt].ad = accept(sd, (struct sockaddr*)(&(clients[cnt].remote_ip)), &remote_len);
@@ -106,6 +121,10 @@ int main() {
             printf("accept error, errno is %d.\n", errno);
             continue;
         }
+        clients[cnt].no = cnt + 1;
+
+        printf("------------client %d start!------------\n", cnt + 1);
+        printf("ip is %s, port is %d.\n", inet_ntoa(clients[cnt].remote_ip.sin_addr), ntohs(clients[cnt].remote_ip.sin_port));
 
         // Create a new thread for a new ad.
         err = pthread_create(&tids[cnt], NULL, thread_read, (void*)(&(clients[cnt])));
@@ -117,11 +136,9 @@ int main() {
     }
 
     for (int i = 0; i < cnt; ++i) {
-        if (clients[i].ad == -1) {
-            continue;
+        if (clients[i].ad != -1) {
+            pthread_join(tids[i], NULL);
         }
-        close(clients[i].ad);
-        pthread_join(tids[i], NULL);
     }
 
     close(sd);
