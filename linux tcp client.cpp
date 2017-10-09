@@ -32,7 +32,7 @@ void* thread_read(void* arg) {
         usleep(1);
         memset(buf, 0, sizeof(buf));
         size_t size = read(sd, buf, sizeof(buf));
-        if (size == 0) {
+        if (size <= 0) {
             continue;
         }
         printf("client 2 say: %s\n", buf);
