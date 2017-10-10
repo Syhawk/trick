@@ -26,11 +26,13 @@ using namespace std;
 int sd;
 struct sockaddr_in server_ip;
 
+// For solving socket(TCP)'s sticky package problem, use fixed length packet.
 struct Packet {
     int len;
     char buf[BUFFER_SIZE];
 };
 
+// For solving problem buffer insufficient, implement new method by old method.
 ssize_t readn(int fd, void *buf, size_t count) {
     size_t nleft = count;
     ssize_t nread;
