@@ -1,7 +1,10 @@
 /*
-*   1. int socket(int domain, int type, int protocol);
-*   2. int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen)
-*   3. read, write
+*   1. int socket(int domain, int type, int protocol).
+*   2. int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen).
+*   3. read, write, recv.
+*   4. readn, writen: For solving problem buffer insufficient, implement new method by old method.
+*   5. recv_peek, readline: For solving socket(TCP)'s sticky package problem, use special suffix('\n').
+*   6. pthread_mutex, pthread_cond: Solve read I/O manipulate problem.
 */
 
 #include <iostream>
@@ -25,8 +28,10 @@ using namespace std;
 
 int sd;
 struct sockaddr_in server_ip;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t fd_sig;
+pthread_cond_t sd_sig;
 
-// For solving problem buffer insufficient, implement new method by old method.
 ssize_t readn(int fd, void *buf, size_t count) {
     size_t nleft = count;
     ssize_t nread;
@@ -83,7 +88,6 @@ ssize_t recv_peek(int sockfd, void *buf, size_t len) {
     return -1;
 }
 
-// For solving socket(TCP)'s sticky package problem, use special suffix('\n').
 ssize_t readline(int sockfd, void *buf, size_t len) {
     int nleft = len;
     char* bufp = (char*)buf;
@@ -112,31 +116,69 @@ ssize_t readline(int sockfd, void *buf, size_t len) {
             return len - nleft;
         }
     }
-    
+
     return -1;
 }
 
 void* thread_read(void* arg) {
     char buf[BUFFER_SIZE];
     int count;
+
     while (1) {
         memset(buf, 0, sizeof(buf));
+
+        pthread_mutex_lock(&mutex);
+        pthread_cond_wait(&sd_sig, &mutex);
         int size = readline(sd, buf, sizeof(buf));
+        pthread_mutex_unlock(&mutex);
+
         if (size <= 0) {
             continue;
         }
-
         printf("client 2 say: %s", buf);
     }
 }
 
 void* thread_write(void* arg) {
     char buf[BUFFER_SIZE];
+
     while (1) {
         memset(buf, 0, sizeof(buf));
+        
+        pthread_mutex_lock(&mutex);
+        pthread_cond_wait(&fd_sig, &mutex);
         fgets(buf, sizeof(buf), stdin);
-
+        pthread_mutex_unlock(&mutex);
+        
         writen(sd, buf, strlen(buf));
+    }
+}
+
+void io_mointor() {
+    fd_set rset;
+    FD_ZERO(&rset);
+    int fd_stdin = fileno(stdin);
+    int max_fd = max(fd_stdin, sd) + 1;
+
+    while (1) {
+        FD_SET(fd_stdin, &rset);
+        FD_SET(sd, &rset);
+
+        int nready = select(max_fd, &rset, NULL, NULL, NULL);
+        if (nready == -1) {
+            printf("select io stdin failed.\n");
+            return;
+        }
+        if (nready == 0) {
+            continue;
+        }
+
+        if (FD_ISSET(fd_stdin, &rset)) {
+            pthread_cond_signal(&fd_sig);
+        }
+        if (FD_ISSET(sd, &rset)) {
+            pthread_cond_signal(&sd_sig);
+        }
     }
 }
 
@@ -145,7 +187,7 @@ int main() {
     int remote_len;
     pthread_t tid_read;
     pthread_t tid_write;
-    
+
     int err;
     sd = socket(AF_INET, SOCK_STREAM, 0);
     if (sd == -1) {
@@ -178,6 +220,9 @@ int main() {
     }
     printf("local ip: %s, port: %d\n", inet_ntoa(local_addr.sin_addr), ntohs(local_addr.sin_port));
     
+    pthread_cond_init(&fd_sig, NULL);
+    pthread_cond_init(&sd_sig, NULL);
+    
     err = pthread_create(&tid_read, NULL, thread_read, NULL);
     if (err) {
         printf("create read thread failed.\n");
@@ -191,11 +236,17 @@ int main() {
         pthread_join(tid_read, NULL);
         return 0;
     }
-    
+
+    io_mointor();
+
     pthread_join(tid_write, NULL);
     pthread_join(tid_read, NULL);
-    
+
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&fd_sig);
+    pthread_cond_destroy(&sd_sig);
+
     close(sd);
-    
+
     return 0;
 }
