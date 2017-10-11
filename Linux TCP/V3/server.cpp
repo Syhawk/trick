@@ -4,6 +4,8 @@
 *   3. int listen(int sockfd, int backlog);
 *   4. int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
 *   5. read, write
+*   6. readn, writen: For solving problem buffer insufficient, implement new method by old method.
+*   7. recv_peek, readline: For solving socket(TCP)'s sticky package problem, use special suffix('\n').
 */
 
 #include <iostream>
