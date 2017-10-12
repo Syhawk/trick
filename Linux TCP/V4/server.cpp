@@ -3,10 +3,11 @@
 *   2. int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 *   3. int listen(int sockfd, int backlog);
 *   4. int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
-*   5. read, write
-*   6. readn, writen: For solving problem buffer insufficient, implement new method by old method.
-*   7. recv_peek, readline: For solving socket(TCP)'s sticky package problem, use special suffix('\n').
-*   8. select: For multiple client connecting to server by only one thread.
+*   5. int accept_timeout(int sockfd, struct sockaddr* addr, unsigned int wait_seconds);
+*   6. ssize_t readn(int fd, void *buf, size_t count);
+*   7. ssize_t writen(int fd, const void *buf, size_t count);
+*   8. ssize_t readline(int sockfd, void *buf, size_t len);
+*   9. int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
 */
 
 #include <iostream>
@@ -18,8 +19,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
-#include <unistd.h>
 #include <arpa/inet.h>
+#include "interface.h"
 
 using namespace std;
 
@@ -34,96 +35,6 @@ struct Point {
 
 int cnt;
 struct Point clients[FD_SETSIZE];
-
-// For solving problem buffer insufficient, implement new method by old method.
-ssize_t readn(int fd, void *buf, size_t count) {
-    size_t nleft = count;
-    ssize_t nread;
-    char* bufp = (char*)buf;
-
-    while (nleft > 0) {
-        if ((nread = read(fd, bufp, nleft)) < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        } else if (nread == 0) {
-            return count - nleft;
-        }
-
-        nleft -= nread;
-        bufp += nread;
-    }
-
-    return count - nleft;
-}
-
-ssize_t writen(int fd, const void *buf, size_t count) {
-    size_t nleft = count;
-    ssize_t nwrite;
-    char* bufp = (char*)buf;
-
-    while (nleft > 0) {
-        if ((nwrite = write(fd, bufp, nleft)) < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        } else if (nwrite == 0) {
-            return count - nleft;
-        }
-
-        nleft -= nwrite;
-        bufp += nwrite;
-    }
-
-    return count - nwrite;
-}
-
-ssize_t recv_peek(int sockfd, void *buf, size_t len) {
-    int nread;
-    while (1) {
-        nread = recv(sockfd, buf, len, MSG_PEEK);
-        if (nread == -1 && errno == EINTR) {
-            continue;
-        }
-        return nread;
-    }
-    return -1;
-}
-
-// For solving socket(TCP)'s sticky package problem, use special suffix('\n').
-ssize_t readline(int sockfd, void *buf, size_t len) {
-    int nleft = len;
-    char* bufp = (char*)buf;
-    int nread;
-    while (nleft > 0) {
-        nread = recv_peek(sockfd, bufp, nleft);
-        if (nread < 0) {
-            return -1;
-        } else if (nread == 0) {
-            return len - nleft;
-        }
-
-        int index = 0;
-        for (; index < nread && bufp[index] != '\n'; ++index) {}
-        bool flg = (index == nread);
-        index += (!flg);
-
-        nread = readn(sockfd, bufp, index);
-        if (nread != index || nread > nleft) {
-            return -1;
-        }
-
-        bufp += nread;
-        nleft -= nread;
-        if (!flg) {
-            return len - nleft;
-        }
-    }
-    
-    return -1;
-}
 
 void process(void* arg, int size) {
     Point* p = (Point*)arg;
@@ -168,8 +79,7 @@ int main() {
     // Create socket.
     sd = socket(AF_INET, SOCK_STREAM, 0);
     if (sd == -1) {
-        printf("create socket failed, errno is %d.\n", errno);
-        return 0;
+        ERR_EXIT("create socket error");
     }
 
     // Set ip address and port.
@@ -182,25 +92,22 @@ int main() {
     int on = 1;
     err = setsockopt(sd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
     if (err == -1) {
-        printf("setsockopt error, errno is %d.\n", errno);
         close(sd);
-        return 0;
+        ERR_EXIT("setsockopt error");
     }
     
     // Bind ip address and port to socket.
     err = bind(sd, (struct sockaddr*)(&server_ip), sizeof(struct sockaddr));
     if (err == -1) {
-        printf("bind error, errno is %d.\n", errno);
         close(sd);
-        return 0;
+        ERR_EXIT("bind error");
     }
     
     // Set setver's max connect number.
     err = listen(sd, SOMAXCONN);
     if (err == -1) {
-        printf("listen error, errno is %d.\n", errno);
         close(sd);
-        return 0;
+        ERR_EXIT("listen error");
     }
 
 
@@ -223,7 +130,7 @@ int main() {
             if (errno == EINTR) {
                 continue;
             }
-            printf("select run error.\n");
+            perror("select run error");
             break;
         }
         if (nready == 0) {
@@ -232,12 +139,14 @@ int main() {
         if (FD_ISSET(sd, &rset)) {
             // Wait client's request, if request getted, return a new socket;
             // Server connect client with new socket.
-            clients[cnt].ad = accept(sd, (struct sockaddr*)(&(clients[cnt].remote_ip)), &remote_len);
+            // clients[cnt].ad = accept(sd, (struct sockaddr*)(&(clients[cnt].remote_ip)), &remote_len);
+            unsigned int wait_seconds = 3;
+            clients[cnt].ad = accept_timeout(sd, &(clients[cnt].remote_ip), wait_seconds);
             if (clients[cnt].ad == -1) {
                 printf("accept error, errno is %d\n", errno);
                 continue;
             }
-            
+
             // Find the min avalible position.
             int index = 0;
             for (; index < cnt; ++index) {
