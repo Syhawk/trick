@@ -1,11 +1,12 @@
 /*
 *   1. int socket(int domain, int type, int protocol).
 *   2. int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen).
-*   3. read, write, recv.
-*   4. readn, writen: For solving problem buffer insufficient, implement new method by old method.
-*   5. recv_peek, readline: For solving socket(TCP)'s sticky package problem, use special suffix('\n').
-*   6. pthread_mutex, pthread_cond: Solve read I/O manipulate problem.
-*   7. shutdown: Check server closed status.
+*   3. pthread_mutex, pthread_cond.
+*   4. ssize_t readn(int fd, void *buf, size_t count);
+*   5. ssize_t writen(int fd, const void *buf, size_t count);
+*   6. ssize_t readline(int sockfd, void *buf, size_t len);
+*   7. int shutdown(int sockfd, int how);
+*   8. int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, struct timeval *timeout);
 */
 
 #include <iostream>
@@ -17,9 +18,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
-#include <unistd.h>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include "interface.h"
 
 using namespace std;
 
@@ -34,99 +35,12 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t fd_sig;
 pthread_cond_t sd_sig;
 
-ssize_t readn(int fd, void *buf, size_t count) {
-    size_t nleft = count;
-    ssize_t nread;
-    char* bufp = (char*)buf;
-
-    while (nleft > 0) {
-        if ((nread = read(fd, bufp, nleft)) < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        } else if (nread == 0) {
-            return count - nleft;
-        }
-
-        nleft -= nread;
-        bufp += nread;
-    }
-
-    return count - nleft;
-}
-
-ssize_t writen(int fd, const void *buf, size_t count) {
-    size_t nleft = count;
-    ssize_t nwrite;
-    char* bufp = (char*)buf;
-
-    while (nleft > 0) {
-        if ((nwrite = write(fd, bufp, nleft)) < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        } else if (nwrite == 0) {
-            return count - nleft;
-        }
-
-        nleft -= nwrite;
-        bufp += nwrite;
-    }
-
-    return count - nwrite;
-}
-
-ssize_t recv_peek(int sockfd, void *buf, size_t len) {
-    int nread;
-    while (1) {
-        nread = recv(sockfd, buf, len, MSG_PEEK);
-        if (nread == -1 && errno == EINTR) {
-            continue;
-        }
-        return nread;
-    }
-    return -1;
-}
-
-ssize_t readline(int sockfd, void *buf, size_t len) {
-    int nleft = len;
-    char* bufp = (char*)buf;
-    int nread;
-    while (nleft > 0) {
-        nread = recv_peek(sockfd, bufp, nleft);
-        if (nread < 0) {
-            return -1;
-        } else if (nread == 0) {
-            return len - nleft;
-        }
-
-        int index = 0;
-        for (; index < nread && bufp[index] != '\n'; ++index) {}
-        bool flg = (index == nread);
-        index += (!flg);
-
-        nread = readn(sockfd, bufp, index);
-        if (nread != index || nread > nleft) {
-            return -1;
-        }
-
-        bufp += nread;
-        nleft -= nread;
-        if (!flg) {
-            return len - nleft;
-        }
-    }
-
-    return -1;
-}
-
+// pthread_mutex, pthread_cond: Solve read I/O manipulate problem.
 void* thread_read(void* arg) {
     char buf[BUFFER_SIZE];
     int count;
 
-    while (1) {
+    while (!close_flg) {
         memset(buf, 0, sizeof(buf));
 
         pthread_mutex_lock(&mutex);
@@ -146,7 +60,7 @@ void* thread_read(void* arg) {
 void* thread_write(void* arg) {
     char buf[BUFFER_SIZE];
 
-    while (1) {
+    while (!close_flg) {
         memset(buf, 0, sizeof(buf));
 
         pthread_mutex_lock(&mutex);
@@ -198,8 +112,7 @@ int main() {
     int err;
     sd = socket(AF_INET, SOCK_STREAM, 0);
     if (sd == -1) {
-        printf("create socket failed, errno is %d.\n", errno);
-        return 0;
+        ERR_EXIT("create socket error");
     }
 
     // Set ip address and port.
@@ -207,42 +120,43 @@ int main() {
     server_ip.sin_port = htons(5678);
     server_ip.sin_addr.s_addr = htonl(INADDR_ANY);
     memset(server_ip.sin_zero, 0, sizeof(server_ip.sin_zero));
-    
+
     // Connect to server.
-    err = connect(sd, (struct sockaddr*)(&server_ip), sizeof(struct sockaddr));
+    // err = connect(sd, (struct sockaddr*)(&server_ip), sizeof(struct sockaddr));
+    unsigned int wait_seconds = 3;
+    err = connect_timeout(sd, &server_ip, wait_seconds);
     if (err == -1) {
-        printf("connect error.\n");
         close(sd);
-        return 0;
+        if (errno == ETIMEDOUT) {
+            ERR_EXIT("connect timeout...");
+        } else {
+            ERR_EXIT("connect error");
+        }
     }
-    
+
     // Get sock name.
     struct sockaddr_in local_addr;
     socklen_t addr_len = sizeof(struct sockaddr);
     err = getsockname(sd, (struct sockaddr*)(&local_addr), &addr_len);
     if (err < 0) {
-        printf("get host name failed.\n");
         close(sd);
-        return 0;
+        ERR_EXIT("getsockname error");
     }
     printf("local ip: %s, port: %d\n", inet_ntoa(local_addr.sin_addr), ntohs(local_addr.sin_port));
-    
+
     pthread_cond_init(&fd_sig, NULL);
     pthread_cond_init(&sd_sig, NULL);
     close_flg = false;
 
     err = pthread_create(&tid_read, NULL, thread_read, NULL);
     if (err) {
-        printf("create read thread failed.\n");
         close(sd);
-        return 0;
+        ERR_EXIT("create read thread failed");
     }
     err = pthread_create(&tid_write, NULL, thread_write, NULL);
     if (err) {
-        printf("create write thread failed.\n");
         close(sd);
-        pthread_join(tid_read, NULL);
-        return 0;
+        ERR_EXIT("create write thread failed");
     }
 
     io_mointor();
