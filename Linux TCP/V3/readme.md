@@ -6,3 +6,5 @@
 6. For solving problem buffer insufficient, implement new method by old method(write, read -> writen, readn).
 7. Give new method readline, recv_peek to process suffix('\n').
 8. For I/O conflict, use select and thread_cond to solve.
+9. Use gethostname get hostname, use hostname get local ip.
+10. Use setsockopt resume system port.
