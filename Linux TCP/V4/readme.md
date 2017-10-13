@@ -1,16 +1,16 @@
-I. 
+I. Target
 1.TCP server connect with TCP client.
 
-II.
+II. TCP Server
 1. Server broadcast to some clients.
 2. Server use select for each client.
 3. Server use setsockopt resume system port.
 
-III.
+III. TCP Client
 1. Client use thread to write or read message.
 2. Client use shutdown to close connect.
 
-IV.
+IV. Interface
 1. For solving socket(TCP)'s sticky package problem, use special suffix('\n').
 2. For solving problem buffer insufficient, implement new method by old method(write, read -> writen, readn).
 3. Give new method readline, recv_peek to process suffix('\n').
