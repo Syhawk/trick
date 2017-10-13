@@ -3,7 +3,7 @@ I. Target
 
 II. TCP Server
 1. Server broadcast to some clients.
-2. Server use pool for each client.
+2. Server use poll for each client.
 3. Server use setsockopt resume system port.
 
 III. TCP Client
