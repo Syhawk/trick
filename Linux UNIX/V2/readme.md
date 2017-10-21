@@ -1,7 +1,7 @@
 I. Target
 1. Process relationship communication.
 
-II. UDP Server
+II. Server
 1. Father process communicate with subprocess.
 
 IV. Interface
