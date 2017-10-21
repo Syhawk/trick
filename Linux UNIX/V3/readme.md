@@ -1,5 +1,5 @@
 I. Target
-1. Message queue create, get, modify and delete.
+1. Message queue create, get, modify, delete, send, recv.
 
 IV. Interface
 1. For solving socket(TCP)'s sticky package problem, use special suffix('\n').
