@@ -1,11 +1,11 @@
 I. Target
-1. UDP server connect with UDP client.
+1. Server connect with client.
 
-II. UDP Server
+II. Server
 1. Server echo message from client.
 2. Server use AF_UNIX family, sockaddr_un.
 
-III. UDP Client
+III. Client
 1. Client send message to server.
 2. Client use AF_UNIX family, sockaddr_un.
 
