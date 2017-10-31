@@ -1,6 +1,7 @@
-﻿1. UDP(User Datagram Protocol) is a simple, unreliable, connectionless protocol.
-   TCP(Transmission Control Protocol) is a complex, reliable, connection-base protocol.
-   SCTP(Stream Control Transmission Protocol) has some characters of above two protocols and give other characters TCP not available.
+﻿TCP(Transmission Control Protocol), UDP(User Datagram Protocol), SCTP(Stream Control Transmsion Protocol):
+1. UDP is a simple, unreliable, connectionless protocol.
+   TCP is a complex, reliable, connection-base protocol.
+   SCTP has some characters of above two protocols and give other characters TCP not available.
 2. TCP use three-way handshake to establish connection and use four-way handshake to abort connection.
    TCP connection has 11 states.
    We can use netstat -ni/r, ifconfig, ping commands to diagnose network problem.
