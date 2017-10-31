@@ -9,9 +9,9 @@
    SCTP connection has 8 states.
 
 NOTICE:
-a. Function memset has hidden problem(second/third param type is same), bzero has only two params.
-b. Thread function does not set Unix errno variable and regards value of errno as returned value when meets error.
+1. Function memset has hidden problem(second/third param type is same), bzero has only two params.
+2. Thread function does not set Unix errno variable and regards value of errno as returned value when meets error.
    Socket funtion set Unix errno variable when meets error.
-c. Funtion sprintf has buffer overflowing problem, use snprintf replaced.
-d. Function gets, strcat, strcpy also buffer overflowing problem, use fgets, strncat, strncpy replaced separately.
-e. Socket pair{ip1:port1, ip2:port2}.
+3. Funtion sprintf has buffer overflowing problem, use snprintf replaced.
+4. Function gets, strcat, strcpy also buffer overflowing problem, use fgets, strncat, strncpy replaced separately.
+5. Socket pair{ip1:port1, ip2:port2}.
