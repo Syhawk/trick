@@ -1,6 +1,8 @@
 #include "wrapsock.h"
 #include "error.h"
 
+char strres[128];
+
 ssize_t Read(int fildes, void *buf, size_t nbyte) {
 	ssize_t nread = 0;
 	char* ptr;
@@ -330,4 +332,54 @@ void cli_select_echo(int sockfd) {
 			bzero(sendline, sizeof(sendline));
 		}
 	}
+}
+
+char* sock_str_flag(union val* ptr, int len) {
+    bzero(strres, sizeof(strres));
+
+    if (len != sizeof(int)) {
+        snprintf(strres, sizeof(strres), "size (%d) not sizeof(int)", len);
+    } else {
+        snprintf(strres, sizeof(strres), "%s", ptr->i_val == 0 ? "off" : "on");
+    }
+
+    return strres;
+}
+
+char* sock_str_int(union val* ptr, int len) {
+    bzero(strres, sizeof(strres));
+
+    if (len != sizeof(int)) {
+        snprintf(strres, sizeof(strres), "size (%d) not sizeof(int)", len);
+    } else {
+        snprintf(strres, sizeof(strres), "%d", ptr->i_val);
+    }
+
+    return strres;
+}
+
+char* sock_str_linger(union val* ptr, int len) {
+    bzero(strres, sizeof(strres));
+
+    if (len != sizeof(struct linger)) {
+        snprintf(strres, sizeof(strres), "size (%d) not sizeof(struct linger)", len);
+    } else {
+        snprintf(strres, sizeof(strres), "l_onoff = %d, l_linger = %d",
+                ptr->linger_val.l_onoff, ptr->linger_val.l_linger);
+    }
+
+    return strres;
+}
+
+char* sock_str_timeval(union val* ptr, int len) {
+    bzero(strres, sizeof(strres));
+
+    if (len != sizeof(struct timeval)) {
+        snprintf(strres, sizeof(strres), "size (%d) not sizeof(struct timeval)", len);
+    } else {
+        snprintf(strres, sizeof(strres), "%ld sec, %ld usec",
+                ptr->timeval_val.tv_sec, ptr->timeval_val.tv_usec);
+    }
+
+    return strres;
 }

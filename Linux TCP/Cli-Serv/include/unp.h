@@ -20,6 +20,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include <netinet/tcp.h>
+#include <netinet/in.h>
+
 #include <arpa/inet.h>
 
 #define LISTENQ			1024
@@ -33,6 +36,13 @@
 
 #define SA struct sockaddr
 typedef void Sigfunc(int);
+
+union val {
+    int i_val;
+    long l_val;
+    struct linger linger_val;
+    struct timeval timeval_val;
+};
 
 #define HAVE_VSNPRINTF	1
 

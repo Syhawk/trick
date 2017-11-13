@@ -29,4 +29,9 @@ void serv_echo(int sockfd);
 void cli_echo(int sockfd);
 void cli_select_echo(int sockfd);
 
+char* sock_str_flag(union val* ptr, int len);
+char* sock_str_int(union val* ptr, int len);
+char* sock_str_linger(union val* ptr, int len);
+char* sock_str_timeval(union val* ptr, int len);
+
 #endif	// INCLUDE_WRAPSOCK_H
