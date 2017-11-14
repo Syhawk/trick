@@ -35,12 +35,12 @@ struct sock_opts {
 #endif
     {"IP_TOS", IPPROTO_IP, IP_TOS, sock_str_int},
     {"IP_TTL", IPPROTO_IP, IP_TTL, sock_str_int},
+/*
 #ifdef IPV6_DONTFRAG
     {"IPV6_DONTFRAG", IPPROTO_IPV6, IPV6_DONTFRAG, sock_str_flag},
 #else
     {"IPV6_DONTFRAG", 0, 0, NULL},
 #endif
-/*
 #ifdef IPV6_UNICAST_HOPS
     {"IPV6_UNICAST_HOPS", IPPROTO_IPV6, IPV6_UNICAST_HOPS, sock_str_int},
 #else
