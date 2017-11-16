@@ -22,6 +22,8 @@
 
 #include <netinet/tcp.h>
 #include <netinet/in.h>
+#include <netinet/sctp.h>
+#include <netinet/ip6.h>
 
 #include <arpa/inet.h>
 
