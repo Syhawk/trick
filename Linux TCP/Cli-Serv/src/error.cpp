@@ -53,3 +53,13 @@ void err_ret(const char* fmt, ...) {
 
     return;
 }
+
+void err_msg(const char* fmt, ...) {
+    va_list ap;
+
+    va_start(ap, fmt);
+    err_doit(0, LOG_INFO, fmt, ap);
+    va_end(ap);
+
+    return;
+}

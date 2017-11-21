@@ -2,6 +2,7 @@
 #include "error.h"
 
 char strres[128];
+char ip[16];
 
 ssize_t Read(int fildes, void *buf, size_t nbyte) {
 	ssize_t nread = 0;
@@ -11,7 +12,7 @@ ssize_t Read(int fildes, void *buf, size_t nbyte) {
 
 	while (1) {
 		if ((nread = read(fildes, ptr, nbyte)) < 0) {
-			if (errno == EINTR) {
+			if (EINTR == errno) {
 				continue;
 			}
 			return -1;
@@ -32,7 +33,7 @@ ssize_t Readn(int fildes, void* buf, size_t nbyte) {
 
 	while (nleft > 0) {
 		if ((nread = read(fildes, ptr, nleft)) < 0) {
-			if (errno == EINTR) {
+			if (EINTR == errno) {
 				continue;
 			}
 			return -1;
@@ -56,7 +57,7 @@ ssize_t Write(int fildes, const void *buf, size_t nbyte) {
 
 	while (1) {
 		if ((nwrite = write(fildes, ptr, nbyte)) < 0) {
-			if (errno == EINTR) {
+			if (EINTR == errno) {
 				continue;
 			}
 			return -1;
@@ -77,7 +78,7 @@ ssize_t Writen(int fildes, const void *buf, size_t nbyte) {
 
 	while (nleft > 0) {
 		if ((nwrite = write(fildes, ptr, nleft)) < 0) {
-			if (errno == EINTR) {
+			if (EINTR == errno) {
 				continue;
 			}
 			return -1;
@@ -92,6 +93,52 @@ ssize_t Writen(int fildes, const void *buf, size_t nbyte) {
 	}
 
 	return nbyte - nleft;
+}
+
+ssize_t Sendto(int sockfd, const void *buf, size_t len, int flags,
+        const struct sockaddr *dest_addr, socklen_t addrlen) {
+    size_t nleft;
+    ssize_t nwrite;
+    const char* ptr;
+
+    nleft = len;
+    ptr = (char*)buf;
+
+    while (nleft > 0) {
+        if ((nwrite = sendto(sockfd, ptr, nleft, flags, dest_addr, addrlen)) < 0) {
+            if (EINTR == errno) {
+                continue;
+            }
+            return -1;
+        }
+
+        if (nwrite == 0) {
+            break;
+        }
+
+        nleft -= nwrite;
+        ptr += nwrite;
+    }
+
+    return len - nleft;
+}
+
+ssize_t Recvfrom(int sockfd, void *buf, size_t len, int flags,
+        struct sockaddr *src_addr, socklen_t *addrlen) {
+    ssize_t nread;
+
+    while (1) {
+        if ((nread = recvfrom(sockfd, buf, len, flags, src_addr, addrlen)) < 0) {
+            if (EINTR == errno) {
+                continue;
+            }
+            return -1;
+        }
+
+        break;
+    }
+
+    return nread;
 }
 
 int Socket(int domain, int type, int protocol) {
@@ -140,7 +187,7 @@ int Accept(int socket, struct sockaddr* address, socklen_t* address_len) {
 	while (1) {
 		sockfd = accept(socket, address, address_len);
 		if (sockfd == -1) {
-			if (errno == EINTR) {
+			if (EINTR == errno) {
 				continue;
 			}
 			err_sys("accept error");
@@ -163,10 +210,44 @@ void Connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 	return;
 }
 
+int Tcp_connect(const char* host, const char* serv) {
+    struct addrinfo hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    struct addrinfo* res;
+    int err;
+    if ((err = getaddrinfo(host, serv, &hints, &res)) != 0) {
+        err_quit("Tcp_connect error for %s, %s: %s",
+                host, serv, gai_strerror(err));
+    }
+
+    struct addrinfo* ressave = res;
+    int sockfd;
+    do {
+        sockfd = Socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (sockfd < 0) {
+            continue;
+        }
+
+        if (connect(sockfd, (SA*)res->ai_addr, res->ai_addrlen) == 0) {
+            break;
+        }
+        Close(sockfd);
+    } while ((res = res->ai_next) != NULL);
+
+    if (res == NULL) {
+        err_sys("Tcp_connect error for %s, %s", host, serv);
+    }
+
+    freeaddrinfo(ressave);
+}
+
 void Close(int fd) {
 	while (1) {
 		if (close(fd) < 0) {
-			if (errno == EINTR) {
+			if (EINTR == errno) {
 				continue;
 			}
 			err_sys("close error");
@@ -249,7 +330,7 @@ void sig_chld(int signo) {
 	return;
 }
 
-void serv_echo(int sockfd) {
+void tcp_serv_echo(int sockfd) {
 	char buf[MAXLINE] = {0};
 
 	while (1) {
@@ -270,7 +351,7 @@ void serv_echo(int sockfd) {
 	return;
 }
 
-void cli_echo(int sockfd) {
+void tcp_cli_echo(int sockfd) {
 	char sendline[MAXLINE] = {0};
 	char recvline[MAXLINE] = {0};
 
@@ -290,7 +371,7 @@ void cli_echo(int sockfd) {
 	return;
 }
 
-void cli_select_echo(int sockfd) {
+void tcp_cli_select_echo(int sockfd) {
 	char sendline[MAXLINE] = {0};
 	char recvline[MAXLINE] = {0};
 	fd_set rset;
@@ -332,6 +413,67 @@ void cli_select_echo(int sockfd) {
 			bzero(sendline, sizeof(sendline));
 		}
 	}
+
+    return;
+}
+
+void udp_serv_echo(int sockfd) {
+    char buf[MAXLINE] = {0};
+    struct sockaddr_in addr;
+    socklen_t len;
+
+    while (1) {
+        len = sizeof(addr);
+        int nread = Recvfrom(sockfd, buf, sizeof(buf), 0, (SA*)&addr, &len);
+
+        printf("buf is %s", buf);
+
+        Sendto(sockfd, buf, nread, 0, (SA*)&addr, len);
+
+        bzero(buf, sizeof(buf));
+    }
+
+    return;
+}
+
+void udp_cli_echo(int sockfd, SA* servaddr, socklen_t servlen) {
+    char sendbuf[MAXLINE] = {0};
+    char recvbuf[MAXLINE] = {0};
+    struct sockaddr* replay_addr;
+    socklen_t len;
+
+    replay_addr = (struct sockaddr*)Malloc(servlen);
+
+    // Set RCVBUF size.
+    size_t size = 220 * 1024;
+    Setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+
+    // Connect with udp.
+    Connect(sockfd, servaddr, servlen);
+
+    while (fgets(sendbuf, sizeof(sendbuf), stdin) != NULL) {
+        Sendto(sockfd, sendbuf, strlen(sendbuf), 0, servaddr, servlen);
+
+        len = servlen;
+        int nread = Recvfrom(sockfd, recvbuf, sizeof(recvbuf), 0, replay_addr, &len);
+/*
+ * // for other machine ip address.
+        if (len != servlen || memcmp(servaddr, replay_addr, len) != 0) {
+            printf("replay from %s (ignored)\n", Sock_ntop(replay_addr));
+            printf("ip is %s\n", Sock_ntop(servaddr));
+            continue;
+        }
+*/
+        fputs(recvbuf, stdout);
+        printf("recvbuf size = %d\n", nread);
+
+        bzero(sendbuf, sizeof(sendbuf));
+        bzero(recvbuf, sizeof(recvbuf));
+    }
+    
+    Free(replay_addr);
+
+    return;
 }
 
 char* sock_str_flag(union val* ptr, int len) {
@@ -382,4 +524,65 @@ char* sock_str_timeval(union val* ptr, int len) {
     }
 
     return strres;
+}
+
+void *Malloc(size_t size) {
+    if (size == 0) {
+        printf("malloc size should greater then 0.\n");
+        return NULL;
+    }
+
+    return malloc(size);
+}
+
+void Free(void* ptr) {
+    if (NULL == ptr) {
+        printf("free pointer should not be NULL.\n");
+    }
+
+    free(ptr);
+
+    return;
+}
+
+char* Sock_ntop(SA* addr) {
+    bzero(ip, sizeof(ip));
+    strncpy(ip, inet_ntoa(((struct sockaddr_in*)addr)->sin_addr), sizeof(ip));
+
+    return ip;
+}
+
+struct addrinfo* Host_serv(const char* hostname, const char* service,
+        int family, int socktype) {
+
+    struct addrinfo hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_flags = AI_CANONNAME;
+    hints.ai_family = family;
+    hints.ai_socktype = socktype;
+
+    struct addrinfo* res;
+    if (getaddrinfo(hostname, service, &hints, &res) != 0) {
+        return NULL;
+    }
+
+    return res;
+}
+
+int Setsockopt(int sockfd, int level, int optname,
+        const void *optval, socklen_t optlen) {
+    return setsockopt(sockfd, level, optname, optval, optlen);
+}
+
+int Getpeername(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
+    return getpeername(sockfd, addr, addrlen);
+}
+
+const char *Inet_ntop(int af, const void *src,
+        char *dst, socklen_t size) {
+    return inet_ntop(af, src, dst, size);
+}
+
+pid_t Fork(void) {
+    return fork();
 }

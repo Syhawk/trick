@@ -13,6 +13,7 @@
 #include <math.h>
 #include <algorithm>
 #include <poll.h>
+#include <netdb.h>
 
 #include <sys/select.h>
 #include <sys/time.h>
@@ -22,8 +23,6 @@
 
 #include <netinet/tcp.h>
 #include <netinet/in.h>
-#include <netinet/sctp.h>
-#include <netinet/ip6.h>
 
 #include <arpa/inet.h>
 
@@ -31,6 +30,7 @@
 #define MAXLINE			4096
 #define BUFFSIZE		8192
 #define SERV_PORT		5678
+#define INET_ADDRSTRLEN 16
 
 #ifndef INFTIME
 #define INFTIME -1
