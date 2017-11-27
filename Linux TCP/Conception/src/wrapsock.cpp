@@ -2,7 +2,7 @@
 #include "error.h"
 
 char strres[128];
-char ip[16];
+char ipport[128];
 
 ssize_t Read(int fildes, void *buf, size_t nbyte) {
 	ssize_t nread = 0;
@@ -226,12 +226,12 @@ int Tcp_connect(const char* host, const char* serv) {
     struct addrinfo* ressave = res;
     int sockfd;
     do {
-        sockfd = Socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (sockfd < 0) {
             continue;
         }
 
-        if (connect(sockfd, res->ai_addr, res->ai_addrlen) == 0) {
+        if (connect(sockfd, (SA*)res->ai_addr, res->ai_addrlen) == 0) {
             break;
         }
         Close(sockfd);
@@ -242,6 +242,205 @@ int Tcp_connect(const char* host, const char* serv) {
     }
 
     freeaddrinfo(ressave);
+}
+
+int Tcp_listen(const char* host, const char* serv, socklen_t* p_addrlen) {
+    struct addrinfo hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int err;
+    struct addrinfo* res;
+    if ((err = getaddrinfo(host, serv, &hints, &res)) != 0) {
+        err_quit("Tcp_listen error for %s, %s: %s", host, serv, gai_strerror(err));
+    }
+
+    struct addrinfo* ressave;
+    ressave = res;
+
+    int listenfd;
+    do {
+        listenfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (listenfd < 0) {
+            continue;
+        }
+
+        Setsockresume(listenfd);
+        if (bind(listenfd, (SA*)(res->ai_addr), res->ai_addrlen) == 0) {
+            break;
+        }
+        continue;
+    } while ((res = res->ai_next) != NULL);
+
+    if (res == NULL) {
+        err_sys("Tcp_listen error for %s, %s", host, serv);
+    }
+
+    Listen(listenfd, LISTENQ);
+
+    if (p_addrlen) {
+        *p_addrlen = res->ai_addrlen;
+    }
+
+    freeaddrinfo(ressave);
+
+    return listenfd;
+}
+
+int Udp_client(const char* host, const char* serv, SA** p_sa, socklen_t* p_len) {
+    struct addrinfo hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    int err;
+    struct addrinfo* res;
+    if ((err = getaddrinfo(host, serv, &hints, &res)) != 0) {
+        err_quit("Udp_client error for %s, %s: %s", host, serv, gai_strerror(err));
+    }
+
+    struct addrinfo* ressave;
+    ressave = res;
+    int sockfd;
+    do {
+        sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (sockfd >= 0) {
+            if (res->ai_family == AF_INET) {
+                printf("AF_INET\n");
+            }
+            if (res->ai_socktype = SOCK_DGRAM) {
+                printf("udp\n");
+            }
+            printf("%d %d %d\n", res->ai_family, res->ai_socktype, res->ai_protocol);
+            break;
+        }
+    } while ((res = res->ai_next) != NULL);
+
+    *p_sa = (SA*)Malloc(res->ai_addrlen);
+    memcpy(*p_sa, res->ai_addr, res->ai_addrlen);
+    *p_len = res->ai_addrlen;
+
+    freeaddrinfo(ressave);
+
+    return sockfd;
+}
+
+int Udp_client(const char* host, const char* serv, SA* p_sa, socklen_t* p_len) {
+    struct addrinfo hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    int err;
+    struct addrinfo* res;
+    if ((err = getaddrinfo(host, serv, &hints, &res)) != 0) {
+        err_quit("Udp_client error for %s, %s: %s", host, serv, gai_strerror(err));
+    }
+
+    struct addrinfo* ressave;
+    ressave = res;
+    int sockfd;
+    do {
+        sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (sockfd >= 0) {
+            if (res->ai_family == AF_INET) {
+                printf("AF_INET\n");
+            }
+            if (res->ai_socktype = SOCK_DGRAM) {
+                printf("udp\n");
+            }
+            printf("%d %d %d\n", res->ai_family, res->ai_socktype, res->ai_protocol);
+            break;
+        }
+    } while ((res = res->ai_next) != NULL);
+
+    memcpy(p_sa, res->ai_addr, res->ai_addrlen);
+    *p_len = res->ai_addrlen;
+
+    freeaddrinfo(ressave);
+
+    return sockfd;
+}
+
+int Udp_connect(const char* host, const char* serv) {
+    struct addrinfo hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    int err;
+    struct addrinfo* res;
+    if ((err = getaddrinfo(host, serv, &hints, &res)) != 0) {
+        err_quit("Udp_connect error for %s. %s: %s", host, serv, gai_strerror(err));
+    }
+
+    struct addrinfo* ressave;
+    ressave = res;
+    int sockfd;
+    do {
+        sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (sockfd < 0) {
+            continue;
+        }
+
+        if (connect(sockfd, res->ai_addr, res->ai_addrlen) == 0) {
+            printf("addr = %s\n", Sock_ntop(res->ai_addr));
+            break;
+        }
+        Close(sockfd);
+    } while ((res = res->ai_next) != NULL);
+
+    if (res == NULL) {
+        err_sys("Udp_connnect error for %s, %s", host, serv);
+    }
+
+    freeaddrinfo(ressave);
+
+    return sockfd;
+}
+
+int Udp_server(const char* host, const char* serv, socklen_t* p_len) {
+    struct addrinfo hints;
+    bzero(&hints, sizeof(hints));
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    int err;
+    struct addrinfo* res;
+    if ((err = getaddrinfo(host, serv, &hints, &res)) != 0) {
+        err_quit("Udp_server error for %s, %s: %s", host, serv, gai_strerror(err));
+    }
+
+    struct addrinfo* ressave;
+    ressave = res;
+    int sockfd;
+    do {
+        sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (sockfd < 0) {
+            continue;
+        }
+
+        if (bind(sockfd, res->ai_addr, res->ai_addrlen) == 0) {
+            break;
+        }
+
+        Close(sockfd);
+    } while ((res = res->ai_next) != NULL);
+
+    if (res == NULL) {
+        err_sys("Udp_server error for %s, %s", host, serv);
+    }
+
+    if (p_len) {
+        *p_len = res->ai_addrlen;
+    }
+
+    freeaddrinfo(ressave);
+
+    return sockfd;
 }
 
 void Close(int fd) {
@@ -427,6 +626,7 @@ void udp_serv_echo(int sockfd) {
         int nread = Recvfrom(sockfd, buf, sizeof(buf), 0, (SA*)&addr, &len);
 
         printf("buf is %s", buf);
+        printf("port = %d, addr = %s\n", ntohs(addr.sin_port), inet_ntoa(addr.sin_addr));
 
         Sendto(sockfd, buf, nread, 0, (SA*)&addr, len);
 
@@ -449,7 +649,7 @@ void udp_cli_echo(int sockfd, SA* servaddr, socklen_t servlen) {
     Setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
 
     // Connect with udp.
-    Connect(sockfd, servaddr, servlen);
+    //Connect(sockfd, servaddr, servlen);
 
     while (fgets(sendbuf, sizeof(sendbuf), stdin) != NULL) {
         Sendto(sockfd, sendbuf, strlen(sendbuf), 0, servaddr, servlen);
@@ -472,6 +672,28 @@ void udp_cli_echo(int sockfd, SA* servaddr, socklen_t servlen) {
     }
     
     Free(replay_addr);
+
+    return;
+}
+
+void udp_cli_echo(int sockfd) {
+    char sendbuf[MAXLINE] = {0};
+    char recvbuf[MAXLINE] = {0};
+
+    // Set RCVBUF size.
+    size_t size = 220 * 1024;
+    Setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &size, sizeof(size));
+
+    while (fgets(sendbuf, sizeof(sendbuf), stdin) != NULL) {
+        Writen(sockfd, sendbuf, strlen(sendbuf));
+
+        int nread = Readn(sockfd, recvbuf, sizeof(recvbuf));
+        fputs(recvbuf, stdout);
+        printf("recvbuf size = %d\n", nread);
+
+        bzero(sendbuf, sizeof(sendbuf));
+        bzero(recvbuf, sizeof(recvbuf));
+    }
 
     return;
 }
@@ -546,10 +768,23 @@ void Free(void* ptr) {
 }
 
 char* Sock_ntop(SA* addr) {
-    bzero(ip, sizeof(ip));
-    strncpy(ip, inet_ntoa(((struct sockaddr_in*)addr)->sin_addr), sizeof(ip));
+    char port[8];
+    bzero(ipport, sizeof(ipport));
+    switch (addr->sa_family) {
+        case AF_INET:
+            struct sockaddr_in* sin = (struct sockaddr_in*)addr;
+            if (inet_ntop(sin->sin_family, &sin->sin_addr, ipport, sizeof(ipport)) == NULL) {
+                return NULL;
+            }
+            if (ntohs(sin->sin_port) != 0) {
+                bzero(port, sizeof(port));
+                snprintf(port, sizeof(port), ":%d", ntohs(sin->sin_port));
+            }
+            strncat(ipport, port, strlen(port));
+            return ipport;
+    }
 
-    return ip;
+    return ipport;
 }
 
 struct addrinfo* Host_serv(const char* hostname, const char* service,
