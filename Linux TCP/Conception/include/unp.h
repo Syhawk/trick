@@ -31,6 +31,7 @@
 #define BUFFSIZE		8192
 #define SERV_PORT		5678
 #define INET_ADDRSTRLEN 16
+#define MAXFD           64
 
 #ifndef INFTIME
 #define INFTIME -1

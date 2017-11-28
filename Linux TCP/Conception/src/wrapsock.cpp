@@ -3,6 +3,7 @@
 
 char strres[128];
 char ipport[128];
+extern int daemon_proc;
 
 ssize_t Read(int fildes, void *buf, size_t nbyte) {
 	ssize_t nread = 0;
@@ -820,4 +821,47 @@ const char *Inet_ntop(int af, const void *src,
 
 pid_t Fork(void) {
     return fork();
+}
+
+int Daemon_init(const char* p_name, int facility) {
+    pid_t pid;
+    if ((pid = Fork()) < 0) {
+        return -1;
+    } else if (pid) {
+        exit(0);
+    }
+
+    // Set a new session, has no controlling terminal.
+    if (setsid() < 0) {
+        return -1;
+    }
+
+    // Ignore SIGHUP.
+    Signal(SIGHUP, SIG_IGN);
+
+    // Fork again to set new termial device's termimal
+    // as leader process's controlling terminal.
+    if ((pid = Fork()) < 0) {
+        return -1;
+    } else if (pid) {
+        exit(0);
+    }
+
+    daemon_proc = 1;
+
+    chdir("/");
+
+    // Close opened fd.
+    for (int i = 0; i < MAXFD; ++i) {
+        close(i);
+    }
+
+    // Redirect stdin, stdout, stderr to /dev/null
+    open("/dev/null", O_RDONLY);
+    open("/dev/null", O_RDWR);
+    open("/dev/null", O_RDWR);
+
+    openlog(p_name, LOG_PID, facility);
+
+    return 0;
 }
