@@ -63,4 +63,7 @@ int Getpeername(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
 
 pid_t Fork(void);
 
+int Daemon_init(const char* p_name, int facility);
+void Daemon_inetd(const char* p_name, int facility);
+
 #endif	// INCLUDE_WRAPSOCK_H

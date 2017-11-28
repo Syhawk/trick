@@ -13,7 +13,9 @@ int main(int argc, char** argv) {
     socklen_t len;
     len = sizeof(ss);
     Getpeername(sockfd, (SA*)&ss, &len);
-    printf("connect to %s\n", Sock_ntop((SA*)&ss));
+    printf("connect to %s\n", inet_ntoa(((struct sockaddr_in*)&ss)->sin_addr));
+    getsockname(sockfd, (SA*)&ss, &len);
+    printf("local %s\n", Sock_ntop((SA*)&ss));
 
     tcp_cli_select_echo(sockfd);
 

@@ -855,7 +855,7 @@ int Daemon_init(const char* p_name, int facility) {
 
     // Close opened fd.
     for (int i = 0; i < MAXFD; ++i) {
-        //printf("%d\n", fcntl(i, F_GETFD));
+        printf("%d\n", fcntl(i, F_GETFD));
         //close(i); 
     }
 
@@ -870,9 +870,4 @@ int Daemon_init(const char* p_name, int facility) {
 
     printf("openlog succcess\n");
     return 0;
-}
-
-void Daemon_inetd(const char* p_name, int facility) {
-    daemon_proc = 1;
-    openlog(p_name, LOG_PID, facility);
 }

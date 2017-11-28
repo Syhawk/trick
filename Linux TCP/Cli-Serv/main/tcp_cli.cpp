@@ -12,6 +12,15 @@ int main(int argc, char** argv) {
 	servaddr.sin_port = htons(SERV_PORT);
 
 	Connect(sockfd, (SA*)&servaddr, sizeof(servaddr));
+
+    struct sockaddr_storage ss;
+    socklen_t len;
+    len = sizeof(ss);
+    Getpeername(sockfd, (SA*)&ss, &len);
+    printf("connect to %s\n", inet_ntoa(((struct sockaddr_in*)&ss)->sin_addr));
+    getsockname(sockfd, (SA*)&ss, &len);
+    printf("local %s\n", Sock_ntop((SA*)&ss));
+
 	// cli_echo(sockfd);
 	tcp_cli_select_echo(sockfd);
 	Close(sockfd);
